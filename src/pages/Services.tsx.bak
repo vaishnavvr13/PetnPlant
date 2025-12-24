@@ -1,0 +1,362 @@
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import api from "@/lib/api";
+import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useToast } from "@/hooks/use-toast";
+import { Search, MapPin, DollarSign, Calendar as CalendarIcon, Clock, User, Filter } from "lucide-react";
+import { motion } from "framer-motion";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
+import { ProviderRating } from "@/components/reviews/ProviderRating";
+
+type ServiceCategory = 'pet_sitting' | 'dog_walking' | 'pet_grooming' | 'pet_training' | 'plant_care' | 'garden_maintenance';
+
+interface Service {
+  id: string;
+  provider: {
+    _id: string;
+    fullName: string;
+    avatarUrl: string | null;
+    email: string;
+  };
+  title: string;
+  description: string | null;
+  category: ServiceCategory;
+  pricePerHour: number;
+  location: string | null;
+  isActive: boolean;
+}
+
+const categoryLabels: Record<ServiceCategory, string> = {
+  pet_sitting: 'Pet Sitting',
+  dog_walking: 'Dog Walking',
+  pet_grooming: 'Pet Grooming',
+  pet_training: 'Pet Training',
+  plant_care: 'Plant Care',
+  garden_maintenance: 'Garden Maintenance',
+};
+
+const Services = () => {
+  const { user, profile } = useAuth();
+  const { toast } = useToast();
+  const [services, setServices] = useState<Service[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+
+  // Booking dialog state
+  const [selectedService, setSelectedService] = useState<Service | null>(null);
+  const [bookingDate, setBookingDate] = useState<Date>();
+  const [bookingTime, setBookingTime] = useState('09:00');
+  const [durationHours, setDurationHours] = useState('1');
+  const [bookingNotes, setBookingNotes] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    fetchServices();
+  }, []);
+
+  const fetchServices = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('services')
+        .select('*')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Fetch provider profiles separately
+      const providerIds = [...new Set((data || []).map(s => s.provider_id))];
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('user_id, full_name, avatar_url')
+        .in('user_id', providerIds);
+
+      const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
+
+      const servicesWithProfiles = (data || []).map(s => ({
+        ...s,
+        profiles: profileMap.get(s.provider_id)
+      }));
+      setServices(servicesWithProfiles as Service[]);
+    } catch (error) {
+      console.error('Error fetching services:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredServices = services.filter(service => {
+    const matchesSearch = service.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      service.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      service.location?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = categoryFilter === 'all' || service.category === categoryFilter;
+    return matchesSearch && matchesCategory;
+  });
+
+  const handleBookService = async () => {
+    if (!selectedService || !bookingDate || !user) return;
+
+    setSubmitting(true);
+    try {
+      const totalPrice = selectedService.price_per_hour * parseInt(durationHours);
+
+      await api.post('/bookings', {
+        serviceId: selectedService.id,
+        providerId: selectedService.provider_id,
+        scheduledDate: format(bookingDate, 'yyyy-MM-dd'),
+        scheduledTime: bookingTime,
+        durationHours: parseInt(durationHours),
+        totalPrice,
+        notes: bookingNotes || undefined,
+      });
+
+      toast({
+        title: "Booking request sent!",
+        description: "The provider will review your request and respond soon.",
+      });
+
+      setSelectedService(null);
+      setBookingDate(undefined);
+      setBookingTime('09:00');
+      setDurationHours('1');
+      setBookingNotes('');
+    } catch (error) {
+      console.error('Error creating booking:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create booking. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-background">
+      <DashboardHeader />
+      <div className="container mx-auto px-4 py-8">
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="mb-8"
+        >
+          <h1 className="text-3xl font-display font-bold">Browse Services</h1>
+          <p className="text-muted-foreground mt-1">Find the perfect care provider for your needs</p>
+        </motion.div>
+
+        {/* Filters */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+          className="flex flex-col sm:flex-row gap-4 mb-8"
+        >
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search services, locations..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+            <SelectTrigger className="w-full sm:w-48">
+              <Filter className="h-4 w-4 mr-2" />
+              <SelectValue placeholder="All Categories" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Categories</SelectItem>
+              {Object.entries(categoryLabels).map(([value, label]) => (
+                <SelectItem key={value} value={value}>{label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </motion.div>
+
+        {/* Service Grid */}
+        {loading ? (
+          <div className="text-center py-12 text-muted-foreground">Loading services...</div>
+        ) : filteredServices.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">No services found</p>
+            <p className="text-sm text-muted-foreground mt-1">Try adjusting your search or filters</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredServices.map((service, index) => (
+              <motion.div
+                key={service.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.1 + index * 0.05 }}
+              >
+                <Card className="card-elevated hover-lift h-full flex flex-col">
+                  <CardContent className="p-6 flex-1 flex flex-col">
+                    <div className="flex items-start justify-between gap-2 mb-3">
+                      <Badge variant="secondary">{categoryLabels[service.category]}</Badge>
+                      <span className="text-lg font-bold text-primary">${service.price_per_hour}/hr</span>
+                    </div>
+
+                    <h3 className="text-lg font-semibold mb-2">{service.title}</h3>
+
+                    {service.description && (
+                      <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{service.description}</p>
+                    )}
+
+                    <div className="mt-auto space-y-2">
+                      <Link
+                        to={`/provider/${service.provider_id}`}
+                        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors"
+                      >
+                        <User className="h-4 w-4" />
+                        <span>{service.profiles?.full_name || 'Provider'}</span>
+                      </Link>
+                      <ProviderRating providerId={service.provider_id} />
+                      {service.location && (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <MapPin className="h-4 w-4" />
+                          <span>{service.location}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <Button
+                      className="w-full mt-4 bg-primary text-primary-foreground"
+                      onClick={() => setSelectedService(service)}
+                      disabled={service.provider_id === user?.id}
+                    >
+                      {service.provider_id === user?.id ? 'Your Service' : 'Book Now'}
+                    </Button>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+        )}
+
+        {/* Booking Dialog */}
+        <Dialog open={!!selectedService} onOpenChange={(open) => !open && setSelectedService(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Book Service</DialogTitle>
+              <DialogDescription>
+                {selectedService?.title} - ${selectedService?.price_per_hour}/hr
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Date *</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !bookingDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {bookingDate ? format(bookingDate, "PPP") : "Select a date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={bookingDate}
+                      onSelect={setBookingDate}
+                      disabled={(date) => date < new Date()}
+                      initialFocus
+                      className="pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="time">Time *</Label>
+                  <Select value={bookingTime} onValueChange={setBookingTime}>
+                    <SelectTrigger>
+                      <Clock className="h-4 w-4 mr-2" />
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 12 }, (_, i) => {
+                        const hour = i + 8;
+                        const time = `${hour.toString().padStart(2, '0')}:00`;
+                        return <SelectItem key={time} value={time}>{time}</SelectItem>;
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="duration">Duration (hours) *</Label>
+                  <Select value={durationHours} onValueChange={setDurationHours}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[1, 2, 3, 4, 5, 6, 7, 8].map((h) => (
+                        <SelectItem key={h} value={h.toString()}>{h} hour{h > 1 ? 's' : ''}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="notes">Notes for Provider</Label>
+                <Textarea
+                  id="notes"
+                  placeholder="Any special requirements or instructions..."
+                  value={bookingNotes}
+                  onChange={(e) => setBookingNotes(e.target.value)}
+                  rows={3}
+                />
+              </div>
+
+              {selectedService && bookingDate && (
+                <div className="p-3 rounded-lg bg-primary/10 border border-primary/30">
+                  <p className="font-medium">Total: ${selectedService.price_per_hour * parseInt(durationHours)}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {parseInt(durationHours)} hour{parseInt(durationHours) > 1 ? 's' : ''} × ${selectedService.price_per_hour}/hr
+                  </p>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setSelectedService(null)}>Cancel</Button>
+              <Button
+                onClick={handleBookService}
+                disabled={!bookingDate || submitting}
+                className="bg-primary text-primary-foreground"
+              >
+                {submitting ? 'Sending...' : 'Send Request'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </div>
+  );
+};
+
+export default Services;

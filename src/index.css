@@ -1,0 +1,148 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* PetPlant Care - Dark Theme with Lime Accents */
+    --background: 240 10% 6%;
+    --foreground: 0 0% 98%;
+
+    --card: 240 10% 9%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 240 10% 9%;
+    --popover-foreground: 0 0% 98%;
+
+    /* Lime Green Primary */
+    --primary: 75 100% 50%;
+    --primary-foreground: 240 10% 6%;
+
+    --secondary: 240 10% 14%;
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 240 10% 18%;
+    --muted-foreground: 240 5% 60%;
+
+    --accent: 75 100% 50%;
+    --accent-foreground: 240 10% 6%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 240 10% 18%;
+    --input: 240 10% 18%;
+    --ring: 75 100% 50%;
+
+    --radius: 0.75rem;
+
+    /* Custom tokens */
+    --lime: 75 100% 50%;
+    --lime-glow: 75 100% 60%;
+    --lime-muted: 75 60% 40%;
+    --surface-elevated: 240 10% 12%;
+    --surface-hover: 240 10% 15%;
+    
+    /* Gradients */
+    --gradient-lime: linear-gradient(135deg, hsl(75 100% 50%), hsl(90 100% 45%));
+    --gradient-dark: linear-gradient(180deg, hsl(240 10% 6%), hsl(240 10% 4%));
+    --gradient-card: linear-gradient(145deg, hsl(240 10% 10%), hsl(240 10% 7%));
+    --gradient-glow: radial-gradient(ellipse at center, hsl(75 100% 50% / 0.15), transparent 70%);
+
+    /* Shadows */
+    --shadow-lime: 0 0 40px hsl(75 100% 50% / 0.3);
+    --shadow-card: 0 8px 32px hsl(0 0% 0% / 0.4);
+    --shadow-elevated: 0 16px 48px hsl(0 0% 0% / 0.5);
+
+    /* Fonts */
+    --font-display: 'Space Grotesk', sans-serif;
+    --font-body: 'Inter', sans-serif;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body antialiased;
+    font-family: var(--font-body);
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+  }
+}
+
+@layer components {
+  .text-gradient-lime {
+    @apply bg-clip-text text-transparent;
+    background-image: var(--gradient-lime);
+  }
+
+  .glow-lime {
+    box-shadow: var(--shadow-lime);
+  }
+
+  .bg-gradient-lime {
+    background: var(--gradient-lime);
+  }
+
+  .bg-gradient-dark {
+    background: var(--gradient-dark);
+  }
+
+  .bg-gradient-card {
+    background: var(--gradient-card);
+  }
+
+  .glass {
+    @apply bg-card/80 backdrop-blur-xl border border-border/50;
+  }
+
+  .card-elevated {
+    @apply bg-card border border-border rounded-xl;
+    box-shadow: var(--shadow-card);
+  }
+
+  .hover-lift {
+    @apply transition-all duration-300;
+  }
+
+  .hover-lift:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-elevated);
+  }
+}
+
+@layer utilities {
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  .animate-pulse-lime {
+    animation: pulse-lime 2s ease-in-out infinite;
+  }
+
+  .animate-glow {
+    animation: glow 3s ease-in-out infinite alternate;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+
+  @keyframes pulse-lime {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+
+  @keyframes glow {
+    from { box-shadow: 0 0 20px hsl(75 100% 50% / 0.2); }
+    to { box-shadow: 0 0 40px hsl(75 100% 50% / 0.4); }
+  }
+}
